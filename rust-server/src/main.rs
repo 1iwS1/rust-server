@@ -204,46 +204,8 @@ fn main() -> Result<(), std::io::Error>
                 })
             });
 
-        app.at("/group/join")
-            .post(|mut request: Request<Arc<Mutex<DataBase>>>| async move {
-                let value: Value = request.body_json().await.unwrap();
-                let object = value.as_object().unwrap();
-                let u_id = get_field(object, "u_id");
-                let g_id = get_field(object, "g_id");
-
-                let mut guard = request.state().lock().unwrap();
-                Ok(match guard.groups.get(&g_id)
-                {
-                    None => resp_error("no such group"),
-                    Some(is_closed) =>
-                        {
-                            if *is_closed
-                            {
-                                resp_error("group is closed")
-                            }
-                            else if !guard.users.contains_key(&u_id)
-                            {
-                                resp_error("no such user")
-                            }
-                            else
-                            {
-                                let user_g_id = UGId{u_id, g_id};
-                                if guard.u_gs.contains_key(&user_g_id)
-                                {
-                                    resp_error("user already in group")
-                                }
-                                else
-                                {
-                                    guard.u_gs.insert(user_g_id, UGProps::new(LevelAccess::User));
-                                    resp_empty()
-                                }
-                            }
-                        }
-                    },
-                })
-            });
-        app.at("/group/make_admin")
-            .post(|mut request: Request<Arc<Mutex<DataBase>>>| async move {
+            app.at("/group/make_admin")
+                .post(|mut request: Request<Arc<Mutex<DataBase>>>| async move {
                 let body: Value = request.body_json().await?;
                 let object = body.as_object().unwrap();
                 let g_id: Id = get_field(object, "g_id");

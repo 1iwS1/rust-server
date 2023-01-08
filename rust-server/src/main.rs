@@ -112,6 +112,100 @@ fn main() -> Result<(), std::io::Error>
                 }
             });
 
+        app.at("/group/unadmin")
+            .post(|mut request: Request<Arc<Mutex<DataBase>>>| async move {
+                let body: Value = request.body_json().await?;
+                let object = body.as_object().unwrap();
+                let admin_id = get_field(object, "admin_id");
+                let g_id = get_field(object, "g_id");
+
+                let mut guard = request.state().lock().unwrap();
+                let user_g_id = UGId{u_id: admin_id, g_id};
+                Ok(match guard.u_gs.get(&user_g_id)
+                {
+                    None => resp_error("user does not belong to this group"),
+                    Some(user_group_props) =>
+                        {
+                            if user_group_props.level != LevelAccess::Admin
+                            {
+                                resp_error("This user is not an admin.")
+                            }
+                            else
+                            {
+                                if count_admins(g_id, &guard.u_gs) < 2
+                                {
+                                    resp_error("It is impossible to remove the last admin in a group. You can appoint a new admin and repeat or delete the whole group.")
+                                }
+                                else
+                                {
+                                    guard.u_gs.get_mut(&user_g_id).unwrap().level = LevelAccess::User;
+                                    resp_empty()
+                                }
+                            }
+                        }
+                })
+            });
+        app.at("/group/delete")
+            .post(|mut request: Request<Arc<Mutex<DataBase>>>| async move {
+                let body: Value = request.body_json().await?;
+                let object = body.as_object().unwrap();
+                let admin_id = get_field(object, "admin_id");
+                let g_id = get_field(object, "g_id");
+
+                let mut guard = request.state().lock().unwrap();
+                Ok(match guard.u_gs.get(&UGId{u_id: admin_id, g_id})
+                {
+                    None => resp_error("user does not belong to this group"),
+                    Some(user_group_props) =>
+                        {
+                            if user_group_props.level != LevelAccess::Admin
+                            {
+                                resp_error("This user is not an admin.")
+                            }
+                            else
+                            {
+                                // Before delete group, we need to delete all users from this group
+                                guard.u_gs.retain(|user_g_id, _|
+                                    {
+                                        user_g_id.g_id != g_id
+                                    });
+                                guard.groups.remove(&g_id);
+                                resp_empty()
+                            }
+                        }
+                }
+                )});
+
+        app.at("/group/target_by_id/:u_id/:g_id")
+            .get(|request: Request<Arc<Mutex<DataBase>>>| async move{
+                let first_id = request.param("u_id")?;
+                let second_id = request.param("g_id")?;
+                for c in first_id.chars() {
+                    if !c.is_numeric() {
+                        return Ok(resp_error("Wrong format user id"));
+                    }
+                }
+                for c in second_id.chars() {
+                    if !c.is_numeric() {
+                        return Ok(resp_error("Wrong format group id"));
+                    }
+                }
+                let u_id: Id = first_id.parse().unwrap();
+                let g_id: Id = second_id.parse().unwrap();
+
+                let guard = request.state().lock().unwrap();
+                Ok(match guard.u_gs.get(&UGId{u_id, g_id})
+                {
+                    None => resp_error("user does not belong to this group"),
+                    Some(user_group_props) =>
+                        {
+                            resp_data(json!({"cysh_for_id": user_group_props.santa_id}))
+                        }
+                })
+            });
+
+
+
         app.listen("127.0.0.1:8080").await
     };
     futures::executor::block_on(f)

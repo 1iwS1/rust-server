@@ -86,3 +86,43 @@ pub fn new_user(input_obj: &Map<String, Value>, state: &Arc<Mutex<DataBase>>) ->
         resp_error("bad name")
     }
 }
+pub fn belongs_to_group(u_id: Id, g_id: Id, u_gs: &HashMap<UGId,UGProps>) -> bool
+{
+    return u_gs.contains_key(&UGId { u_id, g_id });
+}
+
+pub fn admins_count(g_id: Id, u_gs: &HashMap<UGId, UGProps>) ->usize
+{
+    let iter = u_gs.into_iter();
+    let collection = iter.filter(|&x| x.0.g_id == g_id && x.1.level == LevelAccess::Admin);
+    return collection.count();
+}
+pub fn is_admin(u_id: Id, g_id: Id, map: &HashMap<UGId, UGProps>) -> bool
+{
+    map.get(
+        &UGId {
+            u_id,
+            g_id,
+        }
+    ).unwrap().level == LevelAccess::Admin
+}
+
+pub fn get_secret_santa(group: &Vec<Id>) -> HashMap<Id, Id>
+{
+    let mut secret_santa = HashMap::new();
+    let mut change_fist = false;
+    let mut first_in_line:Id = 0;
+    for u_id in group{
+        if change_fist{
+            first_in_line = *u_id;
+            change_fist = false;
+        }
+        let mut santa_id = u_id + 1;
+        if !group.contains(&santa_id){
+            santa_id = first_in_line;
+            change_fist = true;
+        }
+        secret_santa.insert(*u_id, santa_id);
+    }
+    secret_santa
+}

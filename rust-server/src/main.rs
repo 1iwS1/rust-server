@@ -62,7 +62,55 @@ fn main() -> Result<(), std::io::Error>
                 })
             });
 
+        app.at("/group/quit")
+            .post(|mut request: Request<Arc<Mutex<DataBase>>>| async move {
+                let body: Value = request.body_json().await?;
+                let object = body.as_object().unwrap();
+                let g_id: Id = get_field(object, "g_id");
+                let u_id: Id = get_field(object, "u_id");
 
+                let mut guard = request.state().lock().unwrap();
+                let user_g_id = UGId{u_id, g_id};
+                Ok(match guard.u_gs.get(&user_g_id)
+                {
+                    None => resp_error("user does not belong to this group"),
+                    Some(user_group_props) =>
+                        {
+                            if user_group_props.level == LevelAccess::Admin && admins_count(g_id, &guard.u_gs) < 2
+                            {
+                                resp_error("user is only one Admin in this group")
+                            }
+                            else
+                            {
+                                if *guard.groups.get(&g_id).unwrap()
+                                {
+                                    resp_error("group is closed")
+                                }
+                                else
+                                {
+                                    guard.u_gs.remove(&user_g_id);
+                                    resp_empty()
+                                }
+                            }
+                        }
+                })
+            });
+
+        app.at("/user/update")
+            .put(|mut request: Request<Arc<Mutex<DataBase>>>| async move{
+                let body: Value = request.body_json().await?;
+                let object = body.as_object().unwrap();
+                let id : Id = get_field(object, "id");
+                let name: String = get_field(object, "name");
+                let mut guard = request.state().lock().unwrap();
+                return if !guard.users.contains_key(&id)
+                {
+                    Ok(resp_error("No such id"))
+                } else {
+                    guard.users.entry(id).and_modify(|k| *k = name);
+                    Ok(resp_empty())
+                }
+            });
 
         app.listen("127.0.0.1:8080").await
     };

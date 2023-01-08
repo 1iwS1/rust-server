@@ -1,4 +1,4 @@
-# rust-server
+# rust-server (Secret Santa)
 
 Sercret Santa project, which includes one bin crate
 

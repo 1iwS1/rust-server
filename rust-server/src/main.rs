@@ -15,6 +15,17 @@ fn main() -> Result<(), std::io::Error>
         };
         let state = Arc::new(Mutex::new(data));
         let mut app = tide::with_state(state);
+          // Routes
+                app.at("/users")
+                    .get(|request: Request<Arc<Mutex<DataBase>>>| async move {
+                        let guard = request.state().lock().unwrap();
+                        Ok(json!(guard.users))
+                    });
+                app.at("/groups")
+                    .get(|request: Request<Arc<Mutex<DataBase>>>| async move {
+                        let guard = request.state().lock().unwrap();
+                        Ok(json!(guard.groups))
+                    });
 
 
         app.listen("127.0.0.1:8080").await
